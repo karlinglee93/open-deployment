@@ -6,6 +6,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from ai_analyzer import stream_analysis
+from sandbox_runner import run_analysis_in_sandbox
 from vercel_client import VercelAPIError, VercelClient
 
 load_dotenv()
@@ -151,6 +152,13 @@ def render_sidebar():
             placeholder="sk-…",
             help="Required for AI error analysis",
         )
+        daytona_key = st.text_input(
+            "Daytona API Key",
+            value=os.getenv("DAYTONA_API_KEY", ""),
+            type="password",
+            placeholder="day-…",
+            help="Required for running AI analysis in an isolated sandbox",
+        )
 
         if st.button("Connect", type="primary", use_container_width=True):
             if not vercel_token:
@@ -189,8 +197,9 @@ def render_sidebar():
                         st.error(str(e))
                         st.session_state.client = None
 
-        # Store OpenAI key for later use
+        # Store API keys for later use
         st.session_state["_openai_key"] = openai_key
+        st.session_state["_daytona_key"] = daytona_key
 
         st.divider()
         if st.session_state.client:
@@ -231,9 +240,15 @@ def render_sidebar():
         else:
             st.warning("⚠️ No OpenAI key — AI disabled")
 
+        if daytona_key:
+            st.success("✅ Sandboxed AI analysis enabled")
+        else:
+            st.info("ℹ️ No Daytona key — AI analysis runs locally")
+
         st.divider()
         st.caption("Get your Vercel token at [vercel.com/account/tokens](https://vercel.com/account/tokens)")
         st.caption("Get your OpenAI key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)")
+        st.caption("Get your Daytona key at [app.daytona.io](https://app.daytona.io)")
 
 
 # ── Deployment list ───────────────────────────────────────────────────────────
@@ -453,6 +468,7 @@ def render_logs(events: list):
 
 def render_ai_analysis(detail: dict, events: list, state: str):
     openai_key = st.session_state.get("_openai_key", "")
+    daytona_key = st.session_state.get("_daytona_key", "")
 
     is_error = state in ("ERROR", "CANCELED")
     has_stderr = any(
@@ -467,6 +483,12 @@ def render_ai_analysis(detail: dict, events: list, state: str):
     if not openai_key:
         st.warning("Add an **OpenAI API Key** in the sidebar to enable AI-powered analysis.")
         return
+
+    # Show whether analysis will run in sandbox or locally
+    if daytona_key:
+        st.caption("🔒 Analysis will run in an isolated Daytona sandbox")
+    else:
+        st.caption("⚠️ Analysis will run locally — add a Daytona API key for sandboxed execution")
 
     # Show cached analysis if available
     if st.session_state.ai_analysis and not st.session_state.analyzing:
@@ -484,21 +506,38 @@ def render_ai_analysis(detail: dict, events: list, state: str):
             st.rerun()
         return
 
-    # Stream analysis
-    st.info("GPT-4o is analyzing the deployment failure…")
-    try:
-        result = st.write_stream(
-            stream_analysis(
-                deployment=detail,
-                events=events,
-                api_key=openai_key,
+    # Run analysis — sandboxed if Daytona key is available, local otherwise
+    if daytona_key:
+        st.info("🔒 Running analysis in Daytona sandbox…")
+        try:
+            with st.spinner("Creating sandbox and running analysis…"):
+                result = run_analysis_in_sandbox(
+                    daytona_key=daytona_key,
+                    openai_key=openai_key,
+                    deployment=detail,
+                    events=events,
+                )
+            st.session_state.ai_analysis = result
+            st.session_state.analyzing = False
+            st.rerun()
+        except Exception as e:
+            st.error(f"Sandboxed analysis failed: {e}")
+            st.session_state.analyzing = False
+    else:
+        st.info("GPT-4o is analyzing the deployment failure…")
+        try:
+            result = st.write_stream(
+                stream_analysis(
+                    deployment=detail,
+                    events=events,
+                    api_key=openai_key,
+                )
             )
-        )
-        st.session_state.ai_analysis = result
-        st.session_state.analyzing = False
-    except Exception as e:
-        st.error(f"AI analysis failed: {e}")
-        st.session_state.analyzing = False
+            st.session_state.ai_analysis = result
+            st.session_state.analyzing = False
+        except Exception as e:
+            st.error(f"AI analysis failed: {e}")
+            st.session_state.analyzing = False
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -522,6 +561,7 @@ def main():
 - **Live deployment status** — see all recent deployments at a glance
 - **Build log viewer** — browse full build output with error highlighting
 - **AI error analysis** — GPT-4o analyzes failures and suggests specific fixes
+- **Sandboxed AI analysis** — run error analysis in an isolated Daytona sandbox for security
 - **Project filtering** — focus on one project or see everything
 """
                 )
@@ -531,8 +571,9 @@ def main():
                     """
 1. Go to [vercel.com/account/tokens](https://vercel.com/account/tokens) and create a token
 2. Get an OpenAI API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-3. Enter both in the sidebar and click **Connect**
-4. Select a deployment and click **🤖 Analyze with AI** on any failed build
+3. *(Optional)* Get a Daytona API key from [app.daytona.io](https://app.daytona.io) for sandboxed AI analysis
+4. Enter credentials in the sidebar and click **Connect**
+5. Select a deployment and click **🤖 Analyze with AI** on any failed build
 """
                 )
         return
