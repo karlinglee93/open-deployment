@@ -5,7 +5,6 @@ from typing import Optional
 import streamlit as st
 from dotenv import load_dotenv
 
-from ai_analyzer import stream_analysis
 from sandbox_runner import run_analysis_in_sandbox
 from vercel_client import VercelAPIError, VercelClient
 
@@ -19,6 +18,228 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ── Custom CSS ──────────────────────────────────────────────────────────────
+
+st.markdown("""
+<style>
+/* ── Global typography & palette ─────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* ── Sidebar polish ──────────────────────────────────────────────── */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #f8f9fb 0%, #eef1f6 100%);
+    border-right: 1px solid rgba(0,0,0,0.06);
+}
+
+/* ── Cards / containers ──────────────────────────────────────────── */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 12px !important;
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    transform: translateY(-1px);
+}
+
+/* ── Metric cards ────────────────────────────────────────────────── */
+div[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #f8f9fb 0%, #f0f2f6 100%);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+div[data-testid="stMetric"] label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    font-size: 1.1rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Primary buttons ─────────────────────────────────────────────── */
+button[kind="primary"] {
+    background: linear-gradient(135deg, #0070f3 0%, #0051cc 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em;
+    transition: all 0.2s ease !important;
+}
+button[kind="primary"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0,112,243,0.4) !important;
+}
+
+/* ── Secondary buttons ───────────────────────────────────────────── */
+button[kind="secondary"] {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+/* ── Prevent button text from wrapping ───────────────────────────── */
+button[kind="primary"] p,
+button[kind="secondary"] p,
+button p {
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────── */
+button[data-baseweb="tab"] {
+    font-weight: 600 !important;
+    letter-spacing: 0.01em;
+    border-radius: 8px 8px 0 0 !important;
+}
+
+/* ── Code blocks (logs) ──────────────────────────────────────────── */
+pre {
+    border-radius: 10px !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    font-size: 0.82rem !important;
+    line-height: 1.6 !important;
+}
+
+/* ── Expanders ───────────────────────────────────────────────────── */
+details {
+    border-radius: 12px !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+}
+details summary {
+    font-weight: 600;
+}
+
+/* ── Dividers ────────────────────────────────────────────────────── */
+hr {
+    border-color: rgba(0,0,0,0.08) !important;
+    margin: 1.2rem 0 !important;
+}
+
+/* ── Toast messages ──────────────────────────────────────────────── */
+div[data-testid="stToast"] {
+    border-radius: 10px !important;
+}
+
+/* ── Selectbox ───────────────────────────────────────────────────── */
+div[data-baseweb="select"] {
+    border-radius: 8px !important;
+}
+
+/* ── Hero section animations ─────────────────────────────────────── */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.hero-title {
+    font-size: 2.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #0070f3, #0051cc, #7928ca);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: fadeInUp 0.6s ease-out;
+    margin-bottom: 0.3rem;
+}
+.hero-subtitle {
+    font-size: 1.15rem;
+    color: #555;
+    font-weight: 400;
+    animation: fadeInUp 0.6s ease-out 0.1s both;
+    margin-bottom: 2rem;
+}
+.feature-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fb 100%);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 16px;
+    padding: 28px 24px;
+    transition: all 0.25s ease;
+    animation: fadeInUp 0.5s ease-out both;
+}
+.feature-card:hover {
+    border-color: rgba(0,112,243,0.3);
+    box-shadow: 0 8px 30px rgba(0,112,243,0.08);
+    transform: translateY(-2px);
+}
+.feature-icon {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+    display: block;
+}
+.feature-title {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 6px;
+    color: #1a1a1a;
+}
+.feature-desc {
+    font-size: 0.88rem;
+    color: #666;
+    line-height: 1.5;
+}
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0070f3, #0051cc);
+    color: white;
+    font-weight: 700;
+    font-size: 0.82rem;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+.step-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    font-size: 0.95rem;
+    color: #333;
+}
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+.badge-ready  { background: rgba(0,200,83,0.1); color: #1b8a3e; }
+.badge-error  { background: rgba(255,23,68,0.1); color: #c62828; }
+.badge-building { background: rgba(255,171,0,0.1); color: #e65100; }
+.badge-queued { background: rgba(120,120,120,0.1); color: #616161; }
+.badge-canceled { background: rgba(120,120,120,0.1); color: #757575; }
+
+/* ── Deployment row styling ──────────────────────────────────────── */
+.dep-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+    color: #1a1a1a;
+}
+.dep-url {
+    font-size: 0.78rem;
+    color: #888;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.dep-meta {
+    font-size: 0.8rem;
+    color: #777;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ── Session state initialisation ─────────────────────────────────────────────
 
@@ -134,9 +355,16 @@ def dep_state(dep: dict) -> str:
 
 def render_sidebar():
     with st.sidebar:
-        st.title("🚀 Vercel Monitor")
+        st.markdown(
+            '<div style="text-align:center; padding: 8px 0 4px;">'
+            '<span style="font-size:1.6rem;">🚀</span><br>'
+            '<span style="font-weight:700; font-size:1.1rem; letter-spacing:-0.01em;">Vercel Monitor</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
         st.divider()
-        st.subheader("Configuration")
+        st.markdown('<span style="font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.5;">Configuration</span>', unsafe_allow_html=True)
+        st.markdown("")  # spacer
 
         vercel_token = st.text_input(
             "Vercel API Token",
@@ -235,20 +463,27 @@ def render_sidebar():
         else:
             st.info("Enter credentials above to connect.")
 
-        if openai_key:
-            st.success("✅ AI analysis enabled")
-        else:
-            st.warning("⚠️ No OpenAI key — AI disabled")
-
-        if daytona_key:
-            st.success("✅ Sandboxed AI analysis enabled")
-        else:
-            st.info("ℹ️ No Daytona key — AI analysis runs locally")
+        st.markdown(
+            '<span style="font-weight:600; font-size:0.85rem; text-transform:uppercase; '
+            'letter-spacing:0.05em; opacity:0.5;">Services</span>',
+            unsafe_allow_html=True,
+        )
+        svc_ai = "🟢 AI analysis" if openai_key else "🔴 AI analysis (no key)"
+        svc_sandbox = "🟢 Sandbox mode" if daytona_key else "⚪ Sandbox mode (local)"
+        st.markdown(
+            f'<div style="font-size:0.85rem; line-height:2;">{svc_ai}<br>{svc_sandbox}</div>',
+            unsafe_allow_html=True,
+        )
 
         st.divider()
-        st.caption("Get your Vercel token at [vercel.com/account/tokens](https://vercel.com/account/tokens)")
-        st.caption("Get your OpenAI key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)")
-        st.caption("Get your Daytona key at [app.daytona.io](https://app.daytona.io)")
+        st.markdown(
+            '<div style="font-size:0.72rem; opacity:0.4; line-height:1.8;">'
+            '🔗 <a href="https://vercel.com/account/tokens" target="_blank" style="color:inherit;">Vercel Tokens</a> · '
+            '<a href="https://platform.openai.com/api-keys" target="_blank" style="color:inherit;">OpenAI Keys</a> · '
+            '<a href="https://app.daytona.io" target="_blank" style="color:inherit;">Daytona</a>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 # ── Deployment list ───────────────────────────────────────────────────────────
@@ -276,9 +511,15 @@ def render_deployment_list(client: VercelClient):
         st.session_state.dep_events = []
         st.session_state.ai_analysis = ""
 
-    col_hdr, col_refresh = st.columns([4, 1])
-    col_hdr.markdown("### Deployments")
-    if col_refresh.button("↻ Refresh", use_container_width=True):
+    col_hdr, col_filter, col_refresh = st.columns([3, 2, 1])
+    col_hdr.markdown("### 📡 Deployments")
+    status_filter = col_filter.selectbox(
+        "Status",
+        options=["All", "Error", "Ready", "Building", "Canceled"],
+        key="status_filter",
+        label_visibility="collapsed",
+    )
+    if col_refresh.button("↻ Refresh", use_container_width=True, type="secondary"):
         st.session_state.deployments = []
 
     # Load projects lazily (covers the case where team was just switched)
@@ -295,6 +536,17 @@ def render_deployment_list(client: VercelClient):
             )
 
     deployments = st.session_state.deployments
+
+    # Apply status filter
+    if status_filter != "All":
+        filter_map = {
+            "Error": ("ERROR",),
+            "Ready": ("READY",),
+            "Building": ("BUILDING", "INITIALIZING", "QUEUED"),
+            "Canceled": ("CANCELED",),
+        }
+        allowed = filter_map.get(status_filter, ())
+        deployments = [d for d in deployments if dep_state(d) in allowed]
     if not deployments:
         st.info("No deployments found for this project.")
         team_id = client.team_id
@@ -309,11 +561,20 @@ def render_deployment_list(client: VercelClient):
                 st.write(f"Error fetching raw data: {e}")
         return
 
+    STATE_BADGE_CLASS = {
+        "READY": "badge-ready",
+        "ERROR": "badge-error",
+        "BUILDING": "badge-building",
+        "INITIALIZING": "badge-building",
+        "QUEUED": "badge-queued",
+        "CANCELED": "badge-canceled",
+    }
+
     for dep in deployments:
         dep_id = dep.get("uid") or dep.get("id", "")
         state = dep_state(dep)
         dot = STATE_DOT.get(state, "⚪")
-        color = STATE_LABEL_COLOR.get(state, "gray")
+        badge_cls = STATE_BADGE_CLASS.get(state, "badge-queued")
         name = dep.get("name", "unknown")
         url = dep.get("url", "")
         created = dep.get("createdAt") or dep.get("created")
@@ -325,20 +586,29 @@ def render_deployment_list(client: VercelClient):
 
         is_selected = st.session_state.selected_dep_id == dep_id
 
-        with st.container(border=is_selected):
-            c1, c2, c3 = st.columns([3, 2, 1])
+        with st.container(border=True):
+            c1, c2, c3 = st.columns([5, 3, 2])
             with c1:
-                st.markdown(f"**{name}**")
+                st.markdown(f'<div class="dep-name">{name}</div>', unsafe_allow_html=True)
                 if url:
-                    st.caption(f"🔗 {url[:50]}")
+                    st.markdown(f'<div class="dep-url">{url[:50]}</div>', unsafe_allow_html=True)
                 if branch or commit:
-                    st.caption(f"{'🌿 ' + branch if branch else ''} {commit}".strip())
+                    parts = f"{'🌿 ' + branch if branch else ''} {commit}".strip()
+                    st.markdown(f'<div class="dep-meta">{parts}</div>', unsafe_allow_html=True)
             with c2:
-                st.markdown(f"{dot} :{color}[{state}]")
+                st.markdown(
+                    f'<span class="status-badge {badge_cls}">{dot} {state}</span>',
+                    unsafe_allow_html=True,
+                )
                 st.caption(age(created))
             with c3:
-                btn_label = "📂 Open" if not is_selected else "✓ Open"
-                if st.button(btn_label, key=f"open_{dep_id}", use_container_width=True):
+                btn_label = "✓ Selected" if is_selected else "View"
+                if st.button(
+                    btn_label,
+                    key=f"open_{dep_id}",
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary",
+                ):
                     st.session_state.selected_dep_id = dep_id
                     st.session_state.dep_detail = None
                     st.session_state.dep_events = []
@@ -372,9 +642,18 @@ def render_deployment_detail(client: VercelClient):
     detail = st.session_state.dep_detail
     events = st.session_state.dep_events
 
+    STATE_BADGE_CLASS = {
+        "READY": "badge-ready",
+        "ERROR": "badge-error",
+        "BUILDING": "badge-building",
+        "INITIALIZING": "badge-building",
+        "QUEUED": "badge-queued",
+        "CANCELED": "badge-canceled",
+    }
+
     state = dep_state(detail)
     dot = STATE_DOT.get(state, "⚪")
-    color = STATE_LABEL_COLOR.get(state, "gray")
+    badge_cls = STATE_BADGE_CLASS.get(state, "badge-queued")
     name = detail.get("name", "unknown")
     url = detail.get("url", "")
     created = detail.get("createdAt") or detail.get("created")
@@ -382,8 +661,12 @@ def render_deployment_detail(client: VercelClient):
     error_msg = detail.get("errorMessage", "")
 
     # Header
-    col_title, col_close = st.columns([5, 1])
-    col_title.markdown(f"## {dot} {name}")
+    col_title, col_badge, col_close = st.columns([4, 2, 1])
+    col_title.markdown(f"## {name}")
+    col_badge.markdown(
+        f'<div style="padding-top:12px"><span class="status-badge {badge_cls}">{dot} {state}</span></div>',
+        unsafe_allow_html=True,
+    )
     if col_close.button("✕ Close", key="close_detail"):
         st.session_state.selected_dep_id = None
         st.session_state.dep_detail = None
@@ -393,16 +676,16 @@ def render_deployment_detail(client: VercelClient):
 
     # Metrics row
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Status", f":{color}[{state}]")
-    m2.metric("Created", age(created))
+    m1.metric("Created", age(created))
     if ready_at and state == "READY":
-        m3.metric("Build Time", f"{(ready_at - created) // 1000}s" if created else "—")
+        m2.metric("Build Time", f"{(ready_at - created) // 1000}s" if created else "—")
     elif state == "ERROR":
-        m3.metric("Result", ":red[Failed]")
+        m2.metric("Result", "Failed")
     else:
-        m3.metric("Build Time", "—")
+        m2.metric("Build Time", "—")
     if url:
-        m4.markdown(f"**URL**\n[{url[:35]}](https://{url})")
+        m3.markdown(f"**Preview URL**\n\n[{url[:40]}](https://{url})")
+    m4.markdown("")  # keep grid balanced
 
     if error_msg:
         st.error(f"**Error:** {error_msg}")
@@ -484,11 +767,12 @@ def render_ai_analysis(detail: dict, events: list, state: str):
         st.warning("Add an **OpenAI API Key** in the sidebar to enable AI-powered analysis.")
         return
 
-    # Show whether analysis will run in sandbox or locally
-    if daytona_key:
-        st.caption("🔒 Analysis will run in an isolated Daytona sandbox")
-    else:
-        st.caption("⚠️ Analysis will run locally — add a Daytona API key for sandboxed execution")
+    if not daytona_key:
+        st.warning("Add a **Daytona API Key** in the sidebar to enable AI analysis. "
+                    "All analysis runs in an isolated Daytona sandbox for data security.")
+        return
+
+    st.caption("🔒 Analysis will run in an isolated Daytona sandbox")
 
     # Show cached analysis if available
     if st.session_state.ai_analysis and not st.session_state.analyzing:
@@ -506,38 +790,22 @@ def render_ai_analysis(detail: dict, events: list, state: str):
             st.rerun()
         return
 
-    # Run analysis — sandboxed if Daytona key is available, local otherwise
-    if daytona_key:
-        st.info("🔒 Running analysis in Daytona sandbox…")
-        try:
-            with st.spinner("Creating sandbox and running analysis…"):
-                result = run_analysis_in_sandbox(
-                    daytona_key=daytona_key,
-                    openai_key=openai_key,
-                    deployment=detail,
-                    events=events,
-                )
-            st.session_state.ai_analysis = result
-            st.session_state.analyzing = False
-            st.rerun()
-        except Exception as e:
-            st.error(f"Sandboxed analysis failed: {e}")
-            st.session_state.analyzing = False
-    else:
-        st.info("GPT-4o is analyzing the deployment failure…")
-        try:
-            result = st.write_stream(
-                stream_analysis(
-                    deployment=detail,
-                    events=events,
-                    api_key=openai_key,
-                )
+    # Run analysis in isolated Daytona sandbox
+    st.info("🔒 Running analysis in Daytona sandbox…")
+    try:
+        with st.spinner("Creating sandbox and running analysis…"):
+            result = run_analysis_in_sandbox(
+                daytona_key=daytona_key,
+                openai_key=openai_key,
+                deployment=detail,
+                events=events,
             )
-            st.session_state.ai_analysis = result
-            st.session_state.analyzing = False
-        except Exception as e:
-            st.error(f"AI analysis failed: {e}")
-            st.session_state.analyzing = False
+        st.session_state.ai_analysis = result
+        st.session_state.analyzing = False
+        st.rerun()
+    except Exception as e:
+        st.error(f"Sandboxed analysis failed: {e}")
+        st.session_state.analyzing = False
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -547,35 +815,53 @@ def main():
     render_sidebar()
 
     if not st.session_state.client:
-        st.markdown("# 🚀 Vercel Deployment Monitor")
+        st.markdown("")  # spacer
+        st.markdown('<div class="hero-title">Vercel Deployment Monitor</div>', unsafe_allow_html=True)
         st.markdown(
-            "Monitor your Vercel deployments and get AI-powered fix recommendations "
-            "for failed builds."
+            '<div class="hero-subtitle">'
+            "Real-time deployment monitoring with AI-powered error analysis and sandboxed debugging."
+            "</div>",
+            unsafe_allow_html=True,
         )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            with st.expander("✨ Features", expanded=True):
+        # Feature cards
+        features = [
+            ("📡", "Live Status", "See all recent deployments at a glance with real-time state tracking"),
+            ("📋", "Build Logs", "Browse full build output with automatic error highlighting"),
+            ("🤖", "AI Analysis", "Claude analyzes failures and suggests specific, actionable fixes"),
+            ("🔒", "Sandboxed", "Run analysis in isolated Daytona sandboxes for data security"),
+        ]
+        cols = st.columns(4, gap="medium")
+        for i, (icon, title, desc) in enumerate(features):
+            with cols[i]:
                 st.markdown(
-                    """
-- **Live deployment status** — see all recent deployments at a glance
-- **Build log viewer** — browse full build output with error highlighting
-- **AI error analysis** — GPT-4o analyzes failures and suggests specific fixes
-- **Sandboxed AI analysis** — run error analysis in an isolated Daytona sandbox for security
-- **Project filtering** — focus on one project or see everything
-"""
+                    f'<div class="feature-card" style="animation-delay: {0.15 * i}s">'
+                    f'<span class="feature-icon">{icon}</span>'
+                    f'<div class="feature-title">{title}</div>'
+                    f'<div class="feature-desc">{desc}</div>'
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
-        with col2:
-            with st.expander("🔑 Getting started", expanded=True):
-                st.markdown(
-                    """
-1. Go to [vercel.com/account/tokens](https://vercel.com/account/tokens) and create a token
-2. Get an OpenAI API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-3. *(Optional)* Get a Daytona API key from [app.daytona.io](https://app.daytona.io) for sandboxed AI analysis
-4. Enter credentials in the sidebar and click **Connect**
-5. Select a deployment and click **🤖 Analyze with AI** on any failed build
-"""
-                )
+
+        st.markdown("")  # spacer
+
+        # Getting started steps
+        st.markdown("#### Get Started")
+        steps = [
+            ('Create a <a href="https://vercel.com/account/tokens" target="_blank">Vercel API token</a>'),
+            ('Grab an <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API key</a>'),
+            ('<em>(Optional)</em> Get a <a href="https://app.daytona.io" target="_blank">Daytona API key</a> for sandboxed analysis'),
+            ("Enter credentials in the sidebar and click <strong>Connect</strong>"),
+            ('Click <strong>Analyze with AI</strong> on any failed build'),
+        ]
+        for i, text in enumerate(steps, 1):
+            st.markdown(
+                f'<div class="step-row">'
+                f'<span class="step-number">{i}</span>'
+                f'<span>{text}</span>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
         return
 
     client = st.session_state.client
